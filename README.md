@@ -47,8 +47,10 @@ move the SHA to the merge commit on `main`. Every caller names the same SHA once
 policy that the review enforces stays in `docs/pull-requests.md` of `fintermobilityas/company`.
 
 A review is tested by a pull request in a repository that calls it: the run must start, post one summary
-comment that ends with the marker of that review, and set the status that the caller repository requires. The
-pull request that moves the SHA in the first repository is that test; move the other callers after it passes.
+comment that ends with the marker of that review, and set the status that the caller repository requires. The caller
+runs on `pull_request_target`, so a pull request runs the caller of its base branch: the pull request that
+moves the SHA still runs the old commit. Merge the move in one repository first, let the next review there
+run the new commit, and move the other callers after it passes.
 
 ## What is not here
 
