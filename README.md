@@ -14,7 +14,8 @@ A public repository may call only a **public** reusable workflow. Several produc
 repository. Keeping the files here means one copy of each review instead of a copy in every repository.
 
 No secret lives in this repository. A review that needs one declares it under `on: workflow_call: secrets:`
-and reads it from the caller, which passes the organization secret with `secrets: inherit`.
+and reads it from the caller, which passes that one organization secret by name. A caller never uses
+`secrets: inherit`, which would hand every repository and organization secret to the called workflow.
 
 ## How a repository calls a review
 
@@ -31,7 +32,9 @@ jobs:
       actions: read
       checks: read
       statuses: read
-    secrets: inherit
+    # The called workflow reads ANTHROPIC_API_KEY, the organization secret.
+    secrets:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
 ```
 
 ## Changing a review
