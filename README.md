@@ -19,12 +19,14 @@ and reads it from the caller, which passes that one organization secret by name.
 
 ## How a repository calls a review
 
-The caller holds the event, the concurrency group and one `uses:` line, and nothing else:
+The caller holds the event, the concurrency group and one `uses:` line, and nothing else. The `uses:` line
+names a full commit SHA of this repository, never a branch or a tag, so a change here reaches a repository
+only through a reviewed pull request in that repository:
 
 ```yaml
 jobs:
   review:
-    uses: fintermobilityas/review/.github/workflows/claude-review.yml@main
+    uses: fintermobilityas/review/.github/workflows/claude-review.yml@<40-character commit SHA>
     permissions:
       contents: read
       pull-requests: write
@@ -39,12 +41,16 @@ jobs:
 
 ## Changing a review
 
-Open a pull request here. Every caller follows `@main`, so a merge changes the review for every repository at
-the same time. The policy that the review enforces stays in `docs/pull-requests.md` of
-`fintermobilityas/company`.
+Open a pull request here. A merge changes no repository by itself: each caller runs the commit that its
+`uses:` line names. To roll the change out, open a pull request in each repository that calls the review and
+move the SHA to the merge commit on `main`. Every caller names the same SHA once the rollout is done. The
+policy that the review enforces stays in `docs/pull-requests.md` of `fintermobilityas/company`.
 
 A review is tested by a pull request in a repository that calls it: the run must start, post one summary
-comment that ends with the marker of that review, and set the status that the caller repository requires.
+comment that ends with the marker of that review, and set the status that the caller repository requires. The caller
+runs on `pull_request_target`, so a pull request runs the caller of its base branch: the pull request that
+moves the SHA still runs the old commit. Merge the move in one repository first, let the next review there
+run the new commit, and move the other callers after it passes.
 
 ## What is not here
 
