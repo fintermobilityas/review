@@ -4,7 +4,7 @@ The reusable review workflows of fintermobilityas. One file for each kind of rev
 
 | File | What it does | Caller |
 |---|---|---|
-| `.github/workflows/claude-review.yml` | The Claude review of a pull request: two rounds at most, one summary comment with a head/findings marker, inline comments for each finding | `.github/workflows/claude-review.yml` in each repository |
+| `.github/workflows/claude-review.yml` | The Claude review of a pull request: five rounds at most, one summary comment with a head/findings marker, inline comments for each finding | `.github/workflows/claude-review.yml` in each repository |
 | | *another kind of review goes here as another file* | |
 
 ## Why this repository is public
