@@ -31,10 +31,12 @@ name: Claude Review
 # caller holds that queue, because a called workflow cannot serialize its own
 # callers.
 #
-# The Review step now and then fails with "--json-schema was provided but Claude
-# did not return structured_output", though the same review passes minutes later.
-# One retry clears it, in the same run. The failed attempt posts no summary and
-# uses no round, so the retry still starts from the same round.
+# The Review step now and then fails transiently, though the same review passes
+# minutes later: either with "--json-schema was provided but Claude did not
+# return structured_output", or before it records anything at all, which is what
+# a failed download of the action's own tooling looks like. One retry clears
+# either, in the same run. The failed attempt posts no
+# summary and uses no round, so the retry still starts from the same round.
 #
 # pull_request_target runs this file, and the review rules the prompt names,
 # from the base branch with the caller repository's secrets. The pull request's
@@ -251,18 +253,47 @@ jobs:
         env:
           EXECUTION_FILE: ${{ steps.review.outputs.execution_file }}
         run: |
-          # The action stops with "... did not return structured_output. Result
-          # subtype: success" when the result of the run has subtype success and no
-          # schema JSON, which is what the transient errors of this step look like. It
-          # sets no output with that message, so read the execution file it writes
-          # before it fails. No other failure of the step is retried.
+          # Two transient shapes are retried once, and nothing else.
+          #
+          # 1. The action stops with "... did not return structured_output. Result
+          #    subtype: success" when the result of the run has subtype success and no
+          #    schema JSON. It sets no output with that message, so read the execution
+          #    file it writes before it fails.
+          # 2. The step fails before it records anything, so it writes no execution
+          #    file at all, or one with no result record. On 2026-11-08 the action's
+          #    own Bun download returned 504 from
+          #    github.com/oven-sh/bun/releases/download/... to three consecutive runs
+          #    of one pull request, while the same incident also failed that
+          #    repository's CodeQL bundle download and its component-detection
+          #    download. Each failure failed the pull request and had to be
+          #    re-requested by hand with the label. A run that never reached the model
+          #    is at least as safe to repeat as (1), and the cause does not have to be
+          #    known for the repeat to be correct: nothing was recorded, so nothing is
+          #    duplicated.
+          #
+          # Anything else - a bad key, a refused permission, a malformed input - fails
+          # the step for a reason a retry cannot clear, and is not retried.
+          retry=false
+
           if [ -n "$EXECUTION_FILE" ] && jq -e '
               [.[] | select(.type == "result")] | last
               | .subtype == "success" and .structured_output == null
             ' "$EXECUTION_FILE" > /dev/null; then
+            retry=true
+          elif [ -z "$EXECUTION_FILE" ] || [ ! -s "$EXECUTION_FILE" ] || ! jq -e '
+              [.[] | select(.type == "result")] | length > 0
+            ' "$EXECUTION_FILE" > /dev/null 2>&1; then
+            # No result was ever recorded, so the run did not reach the model.
+            echo "The Review step failed before it recorded a result. Retrying once."
+            # Whatever refused a moment ago is usually still refusing, so wait first.
+            sleep 30
+            retry=true
+          fi
+
+          if [ "$retry" = "true" ]; then
             echo "retry=true" >> "$GITHUB_OUTPUT"
           else
-            echo "::error::The Review step failed, and not with the missing structured output that the one retry covers."
+            echo "::error::The Review step failed, and not with one of the two transient shapes that the one retry covers."
             exit 1
           fi
 
